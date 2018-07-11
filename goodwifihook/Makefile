@@ -4,6 +4,7 @@ TWEAK_NAME = GoodWiFi
 
 GoodWiFi_FILES = /mnt/d/codes/goodwifi/goodwifihook/GoodWiFi.xm
 GoodWiFi_FRAMEWORKS = CydiaSubstrate UIKit Security
+GoodWiFi_PRIVATE_FRAMEWORKS = MobileWiFi
 GoodWiFi_LDFLAGS = -Wl,-segalign,4000
 
 export ARCHS = armv7 arm64
