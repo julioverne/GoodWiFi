@@ -1,0 +1,12 @@
+Package: com.julioverne.goodwifi
+Name: GoodWiFi
+Author: julioverne
+Version: 0.0~beta5
+Depends: mobilesubstrate, preferenceloader
+Architecture: iphoneos-arm
+Description: Better WiFi Preferences
+Homepage: http://twitter.com/ijulioverne
+Maintainer: Julio
+Section: Tweaks
+Icon: file:///Library/PreferenceBundles/GoodWiFiSettings.bundle/icon@2x.png
+Depiction: http://julioverne.github.io/description.html?id=com.julioverne.goodwifi

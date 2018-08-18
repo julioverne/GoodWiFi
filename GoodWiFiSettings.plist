@@ -1,0 +1,10 @@
+{
+	entry = {
+		bundle = GoodWiFiSettings;
+		cell = PSLinkCell;
+		detail = "GoodWiFiSettingsController";
+		icon = "icon.png";
+		isController = 1;
+		label = GoodWiFi;
+	};
+}
