@@ -3,7 +3,8 @@
 #import <Security/Security.h>
 #import <substrate.h>
 
-#import <prefs.h>
+#import <Preferences/PSSpecifier.h>
+#import <Preferences/PSListController.h>
 
 extern const char *__progname;
 
@@ -85,5 +86,13 @@ extern "C" CFStringRef WiFiNetworkGetSSID(WiFiNetworkRef network);
 @interface WFNetworkListController : UITableViewController
 -(void)startScanning;
 -(void)stopScanning;
+@end
+
+@interface WFKnownNetworkDetailsViewController : UITableViewController
+@property (nonatomic,retain) NSString *password;
+@end
+
+@interface PSSpecifier (Addition)
+-(NSDictionary *)userInfo;
 @end
 

@@ -1,8 +1,5 @@
 #import "GoodWiFi.h"
 
-
-#define NSLog(...)
-
 #define PLIST_PATH_Settings "/var/mobile/Library/Preferences/com.julioverne.goodwifi.plist"
 
 static BOOL Enabled;
@@ -10,17 +7,21 @@ static BOOL showKnowNetworks;
 static BOOL removeRSSILimit;
 static BOOL showMacAddress;
 
+static NSMutableDictionary *cachedPasswords;
+static NSMutableDictionary *cachedNetworks;
 
 static NSString* getPassForNetworkName(NSString* networkName)
 {
 	if(networkName) {
+		if (cachedPasswords[networkName])
+			return cachedPasswords[networkName];
 		if(WiFiManagerRef manager = WiFiManagerClientCreate(kCFAllocatorDefault, 0)) {
 			if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
 				for(id networkNow in (NSArray*)networks) {
 					if(CFStringRef name = WiFiNetworkGetSSID((WiFiNetworkRef)networkNow)) {
 						if([(NSString*)name isEqualToString:networkName]) {
 							if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)networkNow)) {
-								return [NSString stringWithFormat:@"%@", pass];
+								return cachedPasswords[networkName] = [NSString stringWithFormat:@"%@", pass];
 							}
 							break;
 						}
@@ -285,15 +286,17 @@ static WFNetworkScanRecord* currNetwork;
 static WFNetworkScanRecord* networkForName(NSString* name)
 {
 	if(networksList) {
+		if (cachedNetworks[name])
+			return cachedNetworks[name];
 		for(WFNetworkScanRecord* netNow in networksList) {
 			if(netNow.ssid && [netNow.ssid isEqualToString:name]) {
-				return netNow;
+				return cachedNetworks[name] = netNow;
 			}
 		}
 	}
 	if(currNetwork) {
 		if(currNetwork.ssid && [currNetwork.ssid isEqualToString:name]) {
-			return currNetwork;
+			return cachedNetworks[name] = currNetwork;
 		}
 	}
 	return nil;
@@ -304,19 +307,17 @@ static WFNetworkScanRecord* networkForName(NSString* name)
 %property (nonatomic, retain) id labelCan;
 %property (nonatomic, retain) id labelSec;
 %property (nonatomic,retain) id network;
-- (void)layoutSubviews
-{
-	@try {
+
+static void updateSubtitle(WFNetworkListCell *self) {
+	if(Enabled && showMacAddress) {
 		self.network = networkForName(self.title);
-		if(Enabled&&self.network) {
-			if(showMacAddress) {
-				[self setSubtitle:self.network.bssid];
-			}
-			
-			UIImageView* _barsView = MSHookIvar<UIImageView*>(self, "_signalImageView");
-			UIImageView* _lockView = MSHookIvar<UIImageView*>(self, "_lockImageView");
-		
-		if(_lockView) {
+		[self setSubtitle:self.network.bssid];
+	}
+}
+
+static void updateLockImageView(WFNetworkListCell *self) {
+	UIImageView* _lockView = MSHookIvar<UIImageView*>(self, "_lockImageView");
+	if(Enabled && _lockView) {
 			if(!self.labelSec) {
 				self.labelSec = (UILabel *)[_lockView viewWithTag:4455]?:[[UILabel alloc] init];
 				self.labelSec.tag = 4455;
@@ -333,9 +334,12 @@ static WFNetworkScanRecord* networkForName(NSString* name)
 			if([_lockView viewWithTag:4455]==nil) {
 				[_lockView addSubview:self.labelSec];
 			}
-		}
-		
-		if(_barsView) {
+	}
+}
+
+static void updateSignalImageView(WFNetworkListCell *self) {
+	UIImageView* _barsView = MSHookIvar<UIImageView*>(self, "_signalImageView");
+	if(Enabled && _barsView) {
 			if(!self.labelRssi) {
 				self.labelRssi = (UILabel *)[_barsView viewWithTag:4456]?:[[UILabel alloc] init];
 				self.labelRssi.tag = 4456;
@@ -384,15 +388,24 @@ static WFNetworkScanRecord* networkForName(NSString* name)
 			if([_barsView viewWithTag:4457]==nil) {
 				[_barsView addSubview:self.labelCan];
 			}
-		}
-		
-		}
-	}@catch(NSException* ex) {
 	}
-	
-	%orig;
-	
 }
+
+- (void)setTitle:(NSString *)title {
+	%orig;
+	updateSubtitle(self);
+}
+
+- (void)setLockImageView:(UIImageView *)_lockView {
+	%orig;
+	updateLockImageView(self);
+}
+
+- (void)setSignalImageView:(UIImageView *)_barsView {
+	%orig;
+	updateSignalImageView(self);
+}
+
 %end
 
 static WFNetworkListController* currDelegate;
@@ -447,17 +460,25 @@ static WFNetworkListController* currDelegate;
 			currNetwork = [self currentNetwork];
 			cell.network = currNetwork;
 		} else if(networksList && indexPath.section == 1) {
-			for(WFNetworkScanRecord* netNow in networksList) {
-				if(netNow.ssid && [netNow.ssid isEqualToString:cell.textLabel.text]) {
-					cell.network = netNow;
-					break;
+			if (cachedNetworks[cell.textLabel.text])
+				cell.network = cachedNetworks[cell.textLabel.text];
+			else {
+				for(WFNetworkScanRecord* netNow in networksList) {
+					if(netNow.ssid && [netNow.ssid isEqualToString:cell.textLabel.text]) {
+						cell.network = cachedNetworks[cell.textLabel.text] = netNow;
+						break;
+					}
 				}
 			}
 		}
+		updateSubtitle(cell);
+		updateLockImageView(cell);
+		updateSignalImageView(cell);
 	}@catch(NSException* ex) {
 	}
 	return cell;
 }
+
 %end
 
 
@@ -482,33 +503,7 @@ static WFNetworkListController* currDelegate;
 %end
 
 %hook WFKnownNetworksViewController
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
-	UITableViewCell* cell = %orig;
-	
-	if(UIView* rem = [cell.contentView viewWithTag:6532]) {
-		[rem removeFromSuperview];
-	}
-	UILabel *countLabel= [[UILabel alloc] init];
-	countLabel.tag = 6532;
-	countLabel.backgroundColor = [UIColor clearColor];
-	[countLabel setFrame:CGRectMake(0 ,0, 180,20)];
-	countLabel.numberOfLines = 0;
-	countLabel.font = [UIFont systemFontOfSize:11];
-	countLabel.textColor = [UIColor grayColor];
-	countLabel.textAlignment = NSTextAlignmentRight;
-	[cell.contentView addSubview:countLabel];
-	
-	[countLabel setTranslatesAutoresizingMaskIntoConstraints:NO];
-	
-	NSDictionary *viewDict = NSDictionaryOfVariableBindings(countLabel);
-	[cell addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[countLabel]-0-|" options:NSLayoutFormatDirectionLeftToRight metrics:nil views:viewDict]];
-	[cell addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[countLabel]-20-|" options:NSLayoutFormatDirectionLeftToRight metrics:nil views:viewDict]];
-	[countLabel addConstraint:[NSLayoutConstraint constraintWithItem:countLabel attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:countLabel attribute:NSLayoutAttributeHeight multiplier:1.0 constant:0.0]];
-	countLabel.text = getPassForNetworkName(cell.textLabel.text)?:@"";
-	
-	return cell;	
-}
+
 %new
 - (BOOL)tableView:(UITableView *)tableView shouldShowMenuForRowAtIndexPath:(NSIndexPath *)indexPath
 {
@@ -549,7 +544,29 @@ static WFNetworkListController* currDelegate;
         UIPasteboard *pasteBoard = [UIPasteboard generalPasteboard];
         [pasteBoard setString:cell.detailTextLabel.text];
     }
-}	
+}
+
+-(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+	return self.password && section == [self numberOfSectionsInTableView:tableView] - 1 ? 1 : %orig;
+}
+
+-(NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+	return self.password ? %orig + 1 : %orig;
+}
+
+-(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+	if (self.password && indexPath.section == [self numberOfSectionsInTableView:tableView] - 1) {
+		UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"MyIdentifier"];
+    	if (cell == nil) {
+        	cell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:@"MyIdentifier"] autorelease];
+			cell.textLabel.text = @"Password";
+			cell.detailTextLabel.text = self.password;
+    	}
+		return cell;
+	}
+	return %orig;
+}
+
 %end
 
 %end // end Group iOS11
@@ -575,6 +592,8 @@ static void settingsChangedGoodWiFi(CFNotificationCenterRef center, void *observ
 		dlopen("/System/Library/PreferenceBundles/AirPortSettings.bundle/AirPortSettings", RTLD_LAZY);
 		dlopen("/System/Library/PrivateFrameworks/WiFiKit.framework/WiFiKit", RTLD_LAZY);
 		dlopen("/System/Library/PrivateFrameworks/WiFiKitUI.framework/WiFiKitUI", RTLD_LAZY);
+		cachedPasswords = [[NSMutableDictionary dictionary] retain];
+		cachedNetworks = [[NSMutableDictionary dictionary] retain];
 		if(kCFCoreFoundationVersionNumber >= 1443.00) { // >= 11.0
 			%init(iOS11);
 		} else {

@@ -1,8 +1,12 @@
 #import <notify.h>
 #import <Social/Social.h>
-#import <prefs.h>
 
-#define NSLog(...)
+#import <Preferences/PSSpecifier.h>
+#import <Preferences/PSListController.h>
+
+@interface PSListController (Addition)
+- (void)_returnKeyPressed:(id)arg1;
+@end
 
 #define PLIST_PATH_Settings "/var/mobile/Library/Preferences/com.julioverne.goodwifi.plist"
 
@@ -122,18 +126,12 @@
 		[[self navigationController] presentViewController:twitter animated:YES completion:nil];
 	}
 }
-- (void)showPrompt
-{
-	UIAlertView *alert = [[UIAlertView alloc] initWithTitle:self.title message:@"An Respring is Requerid for this option." delegate:self cancelButtonTitle:@"Cancel" otherButtonTitles:@"Respring", nil];
-	alert.tag = 55;
-	[alert show];
-}
+
 - (void)reset
 {
 	[@{} writeToFile:@PLIST_PATH_Settings atomically:YES];
 	notify_post("com.julioverne.goodwifi/SettingsChanged");
 	[self reloadSpecifiers];
-	[self showPrompt];
 }
 
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier
@@ -143,17 +141,9 @@
 		Prefs[[specifier identifier]] = value;
 		[Prefs writeToFile:@PLIST_PATH_Settings atomically:YES];
 		notify_post("com.julioverne.goodwifi/SettingsChanged");
-		if ([[specifier properties] objectForKey:@"PromptRespring"]) {
-			[self showPrompt];
-		}
 	}
 }
-- (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex
-{
-    if (alertView.tag == 55 && buttonIndex == 1) {
-        system("killall backboardd SpringBoard");
-    }
-}
+
 - (id)readPreferenceValue:(PSSpecifier*)specifier
 {
 	@autoreleasepool {
@@ -195,7 +185,7 @@
 		[headerView addSubview:_label];
 		[headerView addSubview:underLabel];
 
-		[_table setTableHeaderView:headerView];
+		[self.table setTableHeaderView:headerView];
 		[NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(increaseAlpha) userInfo:nil repeats:NO];
 	}
 }
