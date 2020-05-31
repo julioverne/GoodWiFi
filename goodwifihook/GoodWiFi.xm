@@ -11,35 +11,50 @@ static BOOL removeRSSILimit;
 static BOOL showMacAddress;
 
 
+static WiFiManagerRef wifiManager()
+{
+	static WiFiManagerRef manager;
+	if(!manager) {
+		manager = WiFiManagerClientCreate(kCFAllocatorDefault, 0);
+	}
+	return manager;
+}
+
 static NSString* getPassForNetworkName(NSString* networkName)
 {
-	if(networkName) {
-		if(WiFiManagerRef manager = WiFiManagerClientCreate(kCFAllocatorDefault, 0)) {
-			if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
-				for(id networkNow in (NSArray*)networks) {
-					if(CFStringRef name = WiFiNetworkGetSSID((WiFiNetworkRef)networkNow)) {
-						if([(NSString*)name isEqualToString:networkName]) {
-							if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)networkNow)) {
-								return [NSString stringWithFormat:@"%@", pass];
+	@try {
+		if(networkName) {
+			if(WiFiManagerRef manager = wifiManager()) {
+				if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
+					for(id networkNow in (NSArray*)networks) {
+						if(CFStringRef name = WiFiNetworkGetSSID((WiFiNetworkRef)networkNow)) {
+							if([(NSString*)name isEqualToString:networkName]) {
+								if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)networkNow)) {
+									return [NSString stringWithFormat:@"%@", pass];
+								}
+								break;
 							}
-							break;
-						}
-					}					
+						}					
+					}
 				}
 			}
 		}
+	} @catch(NSException* ex) {
 	}
 	return nil;
 }
 
 static NSString* getPassForNetworkAtIndex(int Index)
 {
-	if(WiFiManagerRef manager = WiFiManagerClientCreate(kCFAllocatorDefault, 0)) {
-		if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
-			if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)((NSArray*)networks)[Index])) {
-				return [NSString stringWithFormat:@"%@", pass];
+	@try {
+		if(WiFiManagerRef manager = wifiManager()) {
+			if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
+				if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)((NSArray*)networks)[Index])) {
+					return [NSString stringWithFormat:@"%@", pass];
+				}
 			}
 		}
+	} @catch(NSException* ex) {
 	}
 	return nil;
 }
@@ -96,82 +111,85 @@ static NSString* stringForSecurityMode(int securityMode)
 {
 	%orig;
 	
-	if(UIView* tabVi = [self.contentView viewWithTag:4455]) {
-		[tabVi removeFromSuperview];
-	}
-	if(UIView* tabVi = [self.contentView viewWithTag:4456]) {
-		[tabVi removeFromSuperview];
-	}
-	if(UIView* tabVi = [self.contentView viewWithTag:4457]) {
-		[tabVi removeFromSuperview];
-	}
-	if(Enabled&&self.network) {
-		
-		[self setDetailText:showMacAddress?/*[self.network ip].length>0?[self.network ip]:*/[self.network BSSID]:@""];
-		
-		UIImageView* _barsView = MSHookIvar<UIImageView*>(self, "_barsView");
-		UIImageView* _lockView = MSHookIvar<UIImageView*>(self, "_lockView");
-		
-		if(_lockView) {
-			if(!self.labelSec) {
-				self.labelSec = [[UILabel alloc] init];
-				self.labelSec.tag = 4455;
-			}
-			self.labelSec.center = _lockView.center;
-			self.labelSec.frame = CGRectMake(self.labelSec.frame.origin.x, self.labelSec.frame.origin.y + self.labelSec.frame.size.height + 3, 30, 8);
-			[self.labelSec setText:stringForSecurityMode([self.network securityMode])];
-			[self.labelSec setBackgroundColor:[UIColor clearColor]];
-			[self.labelSec setNumberOfLines:0];
-			self.labelSec.font = [UIFont systemFontOfSize:7];
-			self.labelSec.textAlignment = NSTextAlignmentCenter;
-			self.labelSec.adjustsFontSizeToFitWidth = YES;
-			[self.contentView addSubview:self.labelSec];
+	@try {
+		if(UIView* tabVi = [self.contentView viewWithTag:4455]) {
+			[tabVi removeFromSuperview];
 		}
-		
-		if(_barsView) {
-			if(!self.labelRssi) {
-				self.labelRssi = [[UILabel alloc] init];
-				self.labelRssi.tag = 4456;
-			}
-			self.labelRssi.center = _barsView.center;
-			self.labelRssi.frame = CGRectMake(self.labelRssi.frame.origin.x, self.labelRssi.frame.origin.y + (self.labelRssi.frame.size.height - 3), 20, 8);
-			NSString* rssiSignal = nil;
-			@try {
-				rssiSignal = [[self.network dictionary][@"wifi--setup"][@"RSSI"] stringValue];
-			} @catch(NSException* ex) {
-				
-			}
-			[self.labelRssi setText:rssiSignal];
-			[self.labelRssi setBackgroundColor:[UIColor clearColor]];
-			[self.labelRssi setNumberOfLines:0];
-			self.labelRssi.font = [UIFont systemFontOfSize:7];
-			self.labelRssi.textAlignment = NSTextAlignmentCenter;
-			self.labelRssi.adjustsFontSizeToFitWidth = YES;
-			[self.contentView addSubview:self.labelRssi];
+		if(UIView* tabVi = [self.contentView viewWithTag:4456]) {
+			[tabVi removeFromSuperview];
+		}
+		if(UIView* tabVi = [self.contentView viewWithTag:4457]) {
+			[tabVi removeFromSuperview];
+		}
+		if(Enabled&&self.network) {
 			
-			if(!self.labelCan) {
-				self.labelCan = [[UILabel alloc] init];
-				self.labelCan.tag = 4457;
-			}
-			self.labelCan.center = _barsView.center;
-			self.labelCan.frame = CGRectMake(self.labelCan.frame.origin.x, self.labelCan.frame.origin.y - (_barsView.frame.size.height + 5), 32, 8);
-			NSString* canNumber = nil;
-			@try {
-				canNumber = [[self.network dictionary][@"wifi--setup"][@"CHANNEL"] stringValue];
-				if(canNumber) {
-					canNumber = [NSString stringWithFormat:@"Ch: %@", canNumber];
+			[self setDetailText:showMacAddress?/*[self.network ip].length>0?[self.network ip]:*/[self.network BSSID]:@""];
+			
+			UIImageView* _barsView = MSHookIvar<UIImageView*>(self, "_barsView");
+			UIImageView* _lockView = MSHookIvar<UIImageView*>(self, "_lockView");
+			
+			if(_lockView) {
+				if(!self.labelSec) {
+					self.labelSec = [[UILabel alloc] init];
+					self.labelSec.tag = 4455;
 				}
-			} @catch(NSException* ex) {
-				
+				self.labelSec.center = _lockView.center;
+				self.labelSec.frame = CGRectMake(self.labelSec.frame.origin.x, self.labelSec.frame.origin.y + self.labelSec.frame.size.height + 3, 30, 8);
+				[self.labelSec setText:stringForSecurityMode([self.network securityMode])];
+				[self.labelSec setBackgroundColor:[UIColor clearColor]];
+				[self.labelSec setNumberOfLines:0];
+				self.labelSec.font = [UIFont systemFontOfSize:7];
+				self.labelSec.textAlignment = NSTextAlignmentCenter;
+				self.labelSec.adjustsFontSizeToFitWidth = YES;
+				[self.contentView addSubview:self.labelSec];
 			}
-			[self.labelCan setText:canNumber];
-			[self.labelCan setBackgroundColor:[UIColor clearColor]];
-			[self.labelCan setNumberOfLines:0];
-			self.labelCan.font = [UIFont systemFontOfSize:7];
-			self.labelCan.textAlignment = NSTextAlignmentCenter;
-			self.labelCan.adjustsFontSizeToFitWidth = YES;
-			[self.contentView addSubview:self.labelCan];
+			
+			if(_barsView) {
+				if(!self.labelRssi) {
+					self.labelRssi = [[UILabel alloc] init];
+					self.labelRssi.tag = 4456;
+				}
+				self.labelRssi.center = _barsView.center;
+				self.labelRssi.frame = CGRectMake(self.labelRssi.frame.origin.x, self.labelRssi.frame.origin.y + (self.labelRssi.frame.size.height - 3), 20, 8);
+				NSString* rssiSignal = nil;
+				@try {
+					rssiSignal = [[self.network dictionary][@"wifi--setup"][@"RSSI"] stringValue];
+				} @catch(NSException* ex) {
+					
+				}
+				[self.labelRssi setText:rssiSignal];
+				[self.labelRssi setBackgroundColor:[UIColor clearColor]];
+				[self.labelRssi setNumberOfLines:0];
+				self.labelRssi.font = [UIFont systemFontOfSize:7];
+				self.labelRssi.textAlignment = NSTextAlignmentCenter;
+				self.labelRssi.adjustsFontSizeToFitWidth = YES;
+				[self.contentView addSubview:self.labelRssi];
+				
+				if(!self.labelCan) {
+					self.labelCan = [[UILabel alloc] init];
+					self.labelCan.tag = 4457;
+				}
+				self.labelCan.center = _barsView.center;
+				self.labelCan.frame = CGRectMake(self.labelCan.frame.origin.x, self.labelCan.frame.origin.y - (_barsView.frame.size.height + 5), 32, 8);
+				NSString* canNumber = nil;
+				@try {
+					canNumber = [[self.network dictionary][@"wifi--setup"][@"CHANNEL"] stringValue];
+					if(canNumber) {
+						canNumber = [NSString stringWithFormat:@"Ch: %@", canNumber];
+					}
+				} @catch(NSException* ex) {
+					
+				}
+				[self.labelCan setText:canNumber];
+				[self.labelCan setBackgroundColor:[UIColor clearColor]];
+				[self.labelCan setNumberOfLines:0];
+				self.labelCan.font = [UIFont systemFontOfSize:7];
+				self.labelCan.textAlignment = NSTextAlignmentCenter;
+				self.labelCan.adjustsFontSizeToFitWidth = YES;
+				[self.contentView addSubview:self.labelCan];
+			}
 		}
+	} @catch(NSException* ex) {
 	}
 }
 %end
@@ -180,40 +198,46 @@ static NSString* stringForSecurityMode(int securityMode)
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
 	UITableViewCell* cell = %orig;
-	if(cell) {
-		PSSpecifier* powerWIFI = MSHookIvar<PSSpecifier*>(self, "_powerSpecifier");
-		if(indexPath == [self indexPathForSpecifier:powerWIFI]) {			
-			cell.detailTextLabel.text = nil;			
-			PSSpecifier* currentNetwork = MSHookIvar<PSSpecifier*>(self, "_currentNetworkSpecifier");
-			if(currentNetwork) {
-				if(NSDictionary* userInfoNet = [currentNetwork userInfo]) {
-					if(WiFiNetwork* network = userInfoNet[@"wifi-network"]) {
-						cell.detailTextLabel.text = [network ip].length>0?[network ip]:nil;
+	@try {
+		if(cell) {
+			PSSpecifier* powerWIFI = MSHookIvar<PSSpecifier*>(self, "_powerSpecifier");
+			if(indexPath == [self indexPathForSpecifier:powerWIFI]) {			
+				cell.detailTextLabel.text = nil;			
+				PSSpecifier* currentNetwork = MSHookIvar<PSSpecifier*>(self, "_currentNetworkSpecifier");
+				if(currentNetwork) {
+					if(NSDictionary* userInfoNet = [currentNetwork userInfo]) {
+						if(WiFiNetwork* network = userInfoNet[@"wifi-network"]) {
+							cell.detailTextLabel.text = [network ip].length>0?[network ip]:nil;
+						}
 					}
 				}
 			}
 		}
+	} @catch(NSException* ex) {
 	}
 	return cell;	
 }
 %new
 - (void)GoodWiFiFixWiFiManager
 {
-	static __strong UIRefreshControl *refreshControl;
-	if(!refreshControl) {
-		refreshControl = [[UIRefreshControl alloc] init];
-		[refreshControl addTarget:self action:@selector(refreshScan:) forControlEvents:UIControlEventValueChanged];
-		refreshControl.tag = 8654;
-	}	
-	if(UITableView* tableV = (UITableView *)object_getIvar(self, class_getInstanceVariable([self class], "_table"))) {
-		if(UIView* rem = [tableV viewWithTag:8654]) {
-			[rem removeFromSuperview];
+	@try {
+		static __strong UIRefreshControl *refreshControl;
+		if(!refreshControl) {
+			refreshControl = [[UIRefreshControl alloc] init];
+			[refreshControl addTarget:self action:@selector(refreshScan:) forControlEvents:UIControlEventValueChanged];
+			refreshControl.tag = 8654;
+		}	
+		if(UITableView* tableV = (UITableView *)object_getIvar(self, class_getInstanceVariable([self class], "_table"))) {
+			if(UIView* rem = [tableV viewWithTag:8654]) {
+				[rem removeFromSuperview];
+			}
+			[tableV addSubview:refreshControl];
 		}
-		[tableV addSubview:refreshControl];
-	}
-	if(id _manager = MSHookIvar<id>(self, "_manager")) {
-		MSHookIvar<int>(_manager, "_rssiThreshold") = Enabled&&removeRSSILimit?(-1000):(-80);
-		MSHookIvar<BOOL>(_manager, "_showKnownNetworksUI") = Enabled&&showKnowNetworks?YES:NO;
+		if(id _manager = MSHookIvar<id>(self, "_manager")) {
+			MSHookIvar<int>(_manager, "_rssiThreshold") = Enabled&&removeRSSILimit?(-1000):(-80);
+			MSHookIvar<BOOL>(_manager, "_showKnownNetworksUI") = Enabled&&showKnowNetworks?YES:NO;
+		}
+	} @catch(NSException* ex) {
 	}
 }
 %new
@@ -263,10 +287,14 @@ static NSString* stringForSecurityMode(int securityMode)
 %new
 - (void)tableView:(UITableView *)tableView performAction:(SEL)action forRowAtIndexPath:(NSIndexPath *)indexPath withSender:(id)sender
 {
-    if (action == @selector(copy:)) {
-        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-        UIPasteboard *pasteBoard = [UIPasteboard generalPasteboard];
-        [pasteBoard setString:cell.detailTextLabel.text];
+    if(action == @selector(copy:)) {
+		@try {
+			UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+			if(cell) {
+				[[UIPasteboard generalPasteboard] setString:cell.detailTextLabel.text];
+			}
+		} @catch(NSException* ex) {
+		}
     }
 }	
 %end
@@ -284,17 +312,20 @@ static WFNetworkScanRecord* currNetwork;
 
 static WFNetworkScanRecord* networkForName(NSString* name)
 {
-	if(networksList) {
-		for(WFNetworkScanRecord* netNow in networksList) {
-			if(netNow.ssid && [netNow.ssid isEqualToString:name]) {
-				return netNow;
+	@try {
+		if(networksList) {
+			for(WFNetworkScanRecord* netNow in networksList) {
+				if(netNow.ssid && [netNow.ssid isEqualToString:name]) {
+					return netNow;
+				}
 			}
 		}
-	}
-	if(currNetwork) {
-		if(currNetwork.ssid && [currNetwork.ssid isEqualToString:name]) {
-			return currNetwork;
+		if(currNetwork) {
+			if(currNetwork.ssid && [currNetwork.ssid isEqualToString:name]) {
+				return currNetwork;
+			}
 		}
+	} @catch(NSException* ex) {
 	}
 	return nil;
 }
@@ -485,27 +516,29 @@ static WFNetworkListController* currDelegate;
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
 	UITableViewCell* cell = %orig;
-	
-	if(UIView* rem = [cell.contentView viewWithTag:6532]) {
-		[rem removeFromSuperview];
+	@try {
+		if(UIView* rem = [cell.contentView viewWithTag:6532]) {
+			[rem removeFromSuperview];
+		}
+		UILabel *countLabel= [[UILabel alloc] init];
+		countLabel.tag = 6532;
+		countLabel.backgroundColor = [UIColor clearColor];
+		[countLabel setFrame:CGRectMake(0 ,0, 180,20)];
+		countLabel.numberOfLines = 0;
+		countLabel.font = [UIFont systemFontOfSize:11];
+		countLabel.textColor = [UIColor grayColor];
+		countLabel.textAlignment = NSTextAlignmentRight;
+		[cell.contentView addSubview:countLabel];
+		
+		[countLabel setTranslatesAutoresizingMaskIntoConstraints:NO];
+		
+		NSDictionary *viewDict = NSDictionaryOfVariableBindings(countLabel);
+		[cell addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[countLabel]-0-|" options:NSLayoutFormatDirectionLeftToRight metrics:nil views:viewDict]];
+		[cell addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[countLabel]-20-|" options:NSLayoutFormatDirectionLeftToRight metrics:nil views:viewDict]];
+		[countLabel addConstraint:[NSLayoutConstraint constraintWithItem:countLabel attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:countLabel attribute:NSLayoutAttributeHeight multiplier:1.0 constant:0.0]];
+		countLabel.text = getPassForNetworkName(cell.textLabel.text)?:@"";
+	} @catch(NSException* ex) {
 	}
-	UILabel *countLabel= [[UILabel alloc] init];
-	countLabel.tag = 6532;
-	countLabel.backgroundColor = [UIColor clearColor];
-	[countLabel setFrame:CGRectMake(0 ,0, 180,20)];
-	countLabel.numberOfLines = 0;
-	countLabel.font = [UIFont systemFontOfSize:11];
-	countLabel.textColor = [UIColor grayColor];
-	countLabel.textAlignment = NSTextAlignmentRight;
-	[cell.contentView addSubview:countLabel];
-	
-	[countLabel setTranslatesAutoresizingMaskIntoConstraints:NO];
-	
-	NSDictionary *viewDict = NSDictionaryOfVariableBindings(countLabel);
-	[cell addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[countLabel]-0-|" options:NSLayoutFormatDirectionLeftToRight metrics:nil views:viewDict]];
-	[cell addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[countLabel]-20-|" options:NSLayoutFormatDirectionLeftToRight metrics:nil views:viewDict]];
-	[countLabel addConstraint:[NSLayoutConstraint constraintWithItem:countLabel attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:countLabel attribute:NSLayoutAttributeHeight multiplier:1.0 constant:0.0]];
-	countLabel.text = getPassForNetworkName(cell.textLabel.text)?:@"";
 	
 	return cell;	
 }
@@ -523,9 +556,12 @@ static WFNetworkListController* currDelegate;
 - (void)tableView:(UITableView *)tableView performAction:(SEL)action forRowAtIndexPath:(NSIndexPath *)indexPath withSender:(id)sender
 {
     if (action == @selector(copy:)) {
-		UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-        UIPasteboard *pasteBoard = [UIPasteboard generalPasteboard];
-        [pasteBoard setString:getPassForNetworkName(cell.textLabel.text)?:@""];
+		@try {
+			UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+			UIPasteboard *pasteBoard = [UIPasteboard generalPasteboard];
+			[pasteBoard setString:getPassForNetworkName(cell.textLabel.text)?:@""];
+		} @catch(NSException* ex) {
+		}
     }
 }	
 %end
@@ -545,9 +581,12 @@ static WFNetworkListController* currDelegate;
 - (void)tableView:(UITableView *)tableView performAction:(SEL)action forRowAtIndexPath:(NSIndexPath *)indexPath withSender:(id)sender
 {
     if (action == @selector(copy:)) {
-        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-        UIPasteboard *pasteBoard = [UIPasteboard generalPasteboard];
-        [pasteBoard setString:cell.detailTextLabel.text];
+		@try {
+			UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+			UIPasteboard *pasteBoard = [UIPasteboard generalPasteboard];
+			[pasteBoard setString:cell.detailTextLabel.text];
+		} @catch(NSException* ex) {
+		}
     }
 }	
 %end
