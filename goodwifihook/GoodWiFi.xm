@@ -1,7 +1,7 @@
 #import "GoodWiFi.h"
 
 
-#define NSLog(...)
+#define NSLog1(...)
 
 #define PLIST_PATH_Settings "/var/mobile/Library/Preferences/com.julioverne.goodwifi.plist"
 
@@ -20,85 +20,88 @@ static WiFiManagerRef wifiManager()
 	return manager;
 }
 
+static CFArrayRef networksListArr()
+{
+	static time_t lastTime;
+	static CFArrayRef networks;
+	if(networks && (([[NSDate date] timeIntervalSince1970]-lastTime) > 5) ) { // 5secs refetch timeout
+		CFRelease(networks);
+		networks = nil;
+	}
+	if(!networks) {
+		lastTime = [[NSDate date] timeIntervalSince1970];
+		networks = WiFiManagerClientCopyNetworks(wifiManager());
+	}
+	return networks;
+}
+
 static NSString* getPassForNetworkName(NSString* networkName)
 {
+	NSString* passwordRet = nil;
 	@try {
 		if(networkName) {
-			if(WiFiManagerRef manager = wifiManager()) {
-				if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
-					for(id networkNow in (NSArray*)networks) {
-						if(CFStringRef name = WiFiNetworkGetSSID((WiFiNetworkRef)networkNow)) {
-							if([(NSString*)name isEqualToString:networkName]) {
-								if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)networkNow)) {
-									return [NSString stringWithFormat:@"%@", pass];
-								}
-								break;
+			if(CFArrayRef networks = networksListArr()) {
+				for(id networkNow in (__bridge NSArray*)networks) {
+					if(CFStringRef name = WiFiNetworkGetSSID((__bridge WiFiNetworkRef)networkNow)) {
+						if([(__bridge NSString*)name isEqualToString:networkName]) {
+							if(CFStringRef pass = WiFiNetworkCopyPassword((__bridge WiFiNetworkRef)networkNow)) {
+								passwordRet = [NSString stringWithFormat:@"%@", pass];
+								CFRelease(pass);
 							}
-						}					
-					}
+							break;
+						}
+					}					
 				}
 			}
 		}
 	} @catch(NSException* ex) {
 	}
-	return nil;
+	return passwordRet;
 }
 
 static NSString* getPassForNetworkAtIndex(int Index)
 {
+	NSString* passwordRet = nil;
 	@try {
-		if(WiFiManagerRef manager = wifiManager()) {
-			if(CFArrayRef networks = WiFiManagerClientCopyNetworks(manager)) {
-				if(CFStringRef pass = WiFiNetworkCopyPassword((WiFiNetworkRef)((NSArray*)networks)[Index])) {
-					return [NSString stringWithFormat:@"%@", pass];
-				}
+		if(CFArrayRef networks = networksListArr()) {
+			if(CFStringRef pass = WiFiNetworkCopyPassword((__bridge WiFiNetworkRef)((__bridge NSArray*)networks)[Index])) {
+				passwordRet = [NSString stringWithFormat:@"%@", pass];
+				CFRelease(pass);
 			}
 		}
 	} @catch(NSException* ex) {
 	}
-	return nil;
+	return passwordRet;
 }
 
 static NSString* stringForSecurityMode(int securityMode)
 {
-	NSString *securityModeStr = nil;
 	switch(securityMode)
 	{
 		case kCWSecurityNone:
-			securityModeStr = nil;
-			break;
+			return nil;
 		case kCWSecurityWEP:
-			securityModeStr = @"WEP";
-			break;
+			return @"WEP";
 		case kCWSecurityWPAPersonal:
-			securityModeStr = @"WPA-PSK";
-			break;
+			return @"WPA-PSK";
 		case kCWSecurityWPAPersonalMixed:
-			securityModeStr = @"WPA-PSK/Mix";
-			break;
+			return @"WPA-PSK/Mix";
 		case kCWSecurityWPA2Personal:
-			securityModeStr = @"WPA2-PSK";
-			break;
+			return @"WPA2-PSK";
 		case kCWSecurityPersonal:
-			securityModeStr = @"PSK";
-			break;
+			return @"PSK";
 		case kCWSecurityDynamicWEP:
-			securityModeStr = @"WEP/Dync";
-			break;
+			return @"WEP/Dync";
 		case kCWSecurityWPAEnterprise:
-			securityModeStr = @"WPA";
-			break;
+			return @"WPA";
 		case kCWSecurityWPAEnterpriseMixed:
-			securityModeStr = @"WPA/Mix";
-			break;
+			return @"WPA/Mix";
 		case kCWSecurityWPA2Enterprise:
-			securityModeStr = @"WPA2";
-			break;
+			return @"WPA2";
 		case kCWSecurityEnterprise:
-			securityModeStr = @"WPA";
-			break;
+			return @"WPA";
 	}
-	return securityModeStr;
+	return nil;
 }
 
 %group iOS10
@@ -125,8 +128,8 @@ static NSString* stringForSecurityMode(int securityMode)
 			
 			[self setDetailText:showMacAddress?/*[self.network ip].length>0?[self.network ip]:*/[self.network BSSID]:@""];
 			
-			UIImageView* _barsView = MSHookIvar<UIImageView*>(self, "_barsView");
-			UIImageView* _lockView = MSHookIvar<UIImageView*>(self, "_lockView");
+			UIImageView* _barsView = (UIImageView *)object_getIvar(self, class_getInstanceVariable([self class], "_barsView"));
+			UIImageView* _lockView = (UIImageView *)object_getIvar(self, class_getInstanceVariable([self class], "_lockView"));
 			
 			if(_lockView) {
 				if(!self.labelSec) {
@@ -200,10 +203,12 @@ static NSString* stringForSecurityMode(int securityMode)
 	UITableViewCell* cell = %orig;
 	@try {
 		if(cell) {
-			PSSpecifier* powerWIFI = MSHookIvar<PSSpecifier*>(self, "_powerSpecifier");
+			
+			PSSpecifier* powerWIFI = (PSSpecifier *)object_getIvar(self, class_getInstanceVariable([self class], "_powerSpecifier"));
+			
 			if(indexPath == [self indexPathForSpecifier:powerWIFI]) {			
-				cell.detailTextLabel.text = nil;			
-				PSSpecifier* currentNetwork = MSHookIvar<PSSpecifier*>(self, "_currentNetworkSpecifier");
+				cell.detailTextLabel.text = nil;
+				PSSpecifier* currentNetwork = (PSSpecifier *)object_getIvar(self, class_getInstanceVariable([self class], "_currentNetworkSpecifier"));
 				if(currentNetwork) {
 					if(NSDictionary* userInfoNet = [currentNetwork userInfo]) {
 						if(WiFiNetwork* network = userInfoNet[@"wifi-network"]) {
@@ -233,7 +238,7 @@ static NSString* stringForSecurityMode(int securityMode)
 			}
 			[tableV addSubview:refreshControl];
 		}
-		if(id _manager = MSHookIvar<id>(self, "_manager")) {
+		if(id _manager = (id)object_getIvar(self, class_getInstanceVariable([self class], "_manager"))) {
 			MSHookIvar<int>(_manager, "_rssiThreshold") = Enabled&&removeRSSILimit?(-1000):(-80);
 			MSHookIvar<BOOL>(_manager, "_showKnownNetworksUI") = Enabled&&showKnowNetworks?YES:NO;
 		}
@@ -344,78 +349,78 @@ static WFNetworkScanRecord* networkForName(NSString* name)
 				[self setSubtitle:self.network.bssid];
 			}
 			
-			UIImageView* _barsView = MSHookIvar<UIImageView*>(self, "_signalImageView");
-			UIImageView* _lockView = MSHookIvar<UIImageView*>(self, "_lockImageView");
+			UIImageView* _barsView = (UIImageView *)object_getIvar(self, class_getInstanceVariable([self class], "_signalImageView"));
+			UIImageView* _lockView = (UIImageView *)object_getIvar(self, class_getInstanceVariable([self class], "_lockImageView"));
 		
-		if(_lockView) {
-			if(!self.labelSec) {
-				self.labelSec = (UILabel *)[_lockView viewWithTag:4455]?:[[UILabel alloc] init];
-				self.labelSec.tag = 4455;
-			}
-			[self.labelSec setText:nil];
-			self.labelSec.center = _lockView.center;
-			self.labelSec.frame = CGRectMake((0 - (30 / 3)), _lockView.frame.size.height + 2, 30, 8);
-			[self.labelSec setText:stringForSecurityMode([self.network securityMode])];
-			[self.labelSec setBackgroundColor:[UIColor clearColor]];
-			[self.labelSec setNumberOfLines:0];
-			self.labelSec.font = [UIFont systemFontOfSize:7];
-			self.labelSec.textAlignment = NSTextAlignmentCenter;
-			self.labelSec.adjustsFontSizeToFitWidth = YES;
-			if([_lockView viewWithTag:4455]==nil) {
-				[_lockView addSubview:self.labelSec];
-			}
-		}
-		
-		if(_barsView) {
-			if(!self.labelRssi) {
-				self.labelRssi = (UILabel *)[_barsView viewWithTag:4456]?:[[UILabel alloc] init];
-				self.labelRssi.tag = 4456;
-			}
-			[self.labelRssi setText:nil];
-			self.labelRssi.center = _barsView.center;
-			self.labelRssi.frame = CGRectMake(0, _barsView.frame.size.height - 5, _barsView.frame.size.width, 8);
-			NSString* rssiSignal = nil;
-			@try {
-				rssiSignal = [@([self.network rssi]) stringValue];
-			} @catch(NSException* ex) {
-				
-			}
-			[self.labelRssi setText:rssiSignal];
-			[self.labelRssi setBackgroundColor:[UIColor clearColor]];
-			[self.labelRssi setNumberOfLines:0];
-			self.labelRssi.font = [UIFont systemFontOfSize:7];
-			self.labelRssi.textAlignment = NSTextAlignmentCenter;
-			self.labelRssi.adjustsFontSizeToFitWidth = YES;
-			if([_barsView viewWithTag:4456]==nil) {
-				[_barsView addSubview:self.labelRssi];
+			if(_lockView) {
+				if(!self.labelSec) {
+					self.labelSec = (UILabel *)[_lockView viewWithTag:4455]?:[[UILabel alloc] init];
+					self.labelSec.tag = 4455;
+				}
+				[self.labelSec setText:nil];
+				self.labelSec.center = _lockView.center;
+				self.labelSec.frame = CGRectMake((0 - (30 / 3)), _lockView.frame.size.height + 2, 30, 8);
+				[self.labelSec setText:stringForSecurityMode([self.network securityMode])];
+				[self.labelSec setBackgroundColor:[UIColor clearColor]];
+				[self.labelSec setNumberOfLines:0];
+				self.labelSec.font = [UIFont systemFontOfSize:7];
+				self.labelSec.textAlignment = NSTextAlignmentCenter;
+				self.labelSec.adjustsFontSizeToFitWidth = YES;
+				if([_lockView viewWithTag:4455]==nil) {
+					[_lockView addSubview:self.labelSec];
+				}
 			}
 			
-			if(!self.labelCan) {
-				self.labelCan = (UILabel *)[_barsView viewWithTag:4457]?:[[UILabel alloc] init];
-				self.labelCan.tag = 4457;
-			}
-			[self.labelCan setText:nil];
-			self.labelCan.center = _barsView.center;
-			self.labelCan.frame = CGRectMake(0, 0 - 2, _barsView.frame.size.width, 8);
-			NSString* canNumber = nil;
-			@try {
-				canNumber = [[self.network channel] stringValue];
-				if(canNumber) {
-					canNumber = [NSString stringWithFormat:@"Ch: %@", canNumber];
+			if(_barsView) {
+				if(!self.labelRssi) {
+					self.labelRssi = (UILabel *)[_barsView viewWithTag:4456]?:[[UILabel alloc] init];
+					self.labelRssi.tag = 4456;
 				}
-			} @catch(NSException* ex) {
+				[self.labelRssi setText:nil];
+				self.labelRssi.center = _barsView.center;
+				self.labelRssi.frame = CGRectMake(0, _barsView.frame.size.height - 5, _barsView.frame.size.width, 8);
+				NSString* rssiSignal = nil;
+				@try {
+					rssiSignal = [@([self.network rssi]) stringValue];
+				} @catch(NSException* ex) {
+					
+				}
+				[self.labelRssi setText:rssiSignal];
+				[self.labelRssi setBackgroundColor:[UIColor clearColor]];
+				[self.labelRssi setNumberOfLines:0];
+				self.labelRssi.font = [UIFont systemFontOfSize:7];
+				self.labelRssi.textAlignment = NSTextAlignmentCenter;
+				self.labelRssi.adjustsFontSizeToFitWidth = YES;
+				if([_barsView viewWithTag:4456]==nil) {
+					[_barsView addSubview:self.labelRssi];
+				}
 				
+				if(!self.labelCan) {
+					self.labelCan = (UILabel *)[_barsView viewWithTag:4457]?:[[UILabel alloc] init];
+					self.labelCan.tag = 4457;
+				}
+				[self.labelCan setText:nil];
+				self.labelCan.center = _barsView.center;
+				self.labelCan.frame = CGRectMake(0, 0 - 2, _barsView.frame.size.width, 8);
+				NSString* canNumber = nil;
+				@try {
+					canNumber = [[self.network channel] stringValue];
+					if(canNumber) {
+						canNumber = [NSString stringWithFormat:@"Ch: %@", canNumber];
+					}
+				} @catch(NSException* ex) {
+					
+				}
+				[self.labelCan setText:canNumber];
+				[self.labelCan setBackgroundColor:[UIColor clearColor]];
+				[self.labelCan setNumberOfLines:0];
+				self.labelCan.font = [UIFont systemFontOfSize:7];
+				self.labelCan.textAlignment = NSTextAlignmentCenter;
+				self.labelCan.adjustsFontSizeToFitWidth = YES;
+				if([_barsView viewWithTag:4457]==nil) {
+					[_barsView addSubview:self.labelCan];
+				}
 			}
-			[self.labelCan setText:canNumber];
-			[self.labelCan setBackgroundColor:[UIColor clearColor]];
-			[self.labelCan setNumberOfLines:0];
-			self.labelCan.font = [UIFont systemFontOfSize:7];
-			self.labelCan.textAlignment = NSTextAlignmentCenter;
-			self.labelCan.adjustsFontSizeToFitWidth = YES;
-			if([_barsView viewWithTag:4457]==nil) {
-				[_barsView addSubview:self.labelCan];
-			}
-		}
 		
 		}
 	}@catch(NSException* ex) {
@@ -438,7 +443,6 @@ static WFNetworkListController* currDelegate;
 {
 	@try {
 		networksList = arg1?[[arg1 allObjects] copy]:nil;
-		NSLog(@"setNetworks: %@", arg1);
 	}@catch(NSException* ex) {
 	}
 	%orig;
